@@ -1,6 +1,4 @@
 .env
-.idea
-.vscode
-node_modules
-.idea/dataSources.xml
-.vscode/settings.json
+.idea/
+.vscode/
+node_modules/
