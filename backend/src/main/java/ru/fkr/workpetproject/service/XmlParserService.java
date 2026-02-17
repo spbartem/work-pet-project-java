@@ -52,7 +52,9 @@ public class XmlParserService {
             RosreestrFullInfo rosreestrFullInfo = new RosreestrFullInfo();
 
             rosreestrFullInfo.setRosreestrFullInfoSession(rosreestrFullInfoSessionId);
-            rosreestrFullInfo.setRegistrationDate(parseRegistrationDate(element));
+            rosreestrFullInfo.setRegistrationDate(parseDateTime(element, "registration_date"));
+
+            rosreestrFullInfo.setCancelDate(parseDateTime(element, "cancel_date"));
 
             Element rightType = (Element) element.getElementsByTagName("right_type").item(0);
             rosreestrFullInfo.setRightTypeCode(parseStringOrNull(rightType, "code"));
@@ -120,6 +122,13 @@ public class XmlParserService {
                 rosreestrFullInfo.setDocumentDate(documentDate == null ? null : LocalDate.parse(documentDate));
                 rosreestrFullInfo.setDocumentIssuer(parseStringOrNull(identity_doc, "document_issuer") );
             }
+
+            Element changes = (Element) element.getElementsByTagName("changes").item(0);
+
+            if (changes != null) {
+                rosreestrFullInfo.setChangeRecordNumber(parseStringOrNull(changes, "change_record_number"));
+            }
+
             rosreestrFullInfo.setMailingAddress(parseStringOrNull(element, "mailing_addess"));
 
             rosreestrFullInfoList.add(rosreestrFullInfo);
@@ -141,7 +150,7 @@ public class XmlParserService {
         session.setStatementDateFormation(statementDateFormation == null ? null : LocalDate.parse(statementDateFormation));
         session.setStatementRegistrationNumber(parseStringOrNull(group_top_requisites, "registration_number"));
         session.setCadNum(parseStringOrNull(element, "cad_number"));
-        session.setArea(element.getElementsByTagName("area").item(0).getTextContent());
+//        session.setArea(element.getElementsByTagName("area").item(0).getTextContent());
         session.setOkato(parseStringOrNull(element, "okato"));
         session.setKladr(parseStringOrNull(element, "kladr"));
         session.setTypeStreet(parseStringOrNull(element, "type_street"));
@@ -161,11 +170,10 @@ public class XmlParserService {
         return savedSession.getRosreestr_full_info_session_id();
     }
 
-    private LocalDate parseRegistrationDate(Element element) {
+    private LocalDate parseDateTime(Element element, String tagName) {
 
-        String registrationDateTime = element.getElementsByTagName("registration_date").item(0).getTextContent();
-        OffsetDateTime offsetDateTime = OffsetDateTime.parse(registrationDateTime);
-        return offsetDateTime.toLocalDate();
+        Node valueDateTime = element.getElementsByTagName(tagName).item(0);
+        return valueDateTime == null ? null : OffsetDateTime.parse(valueDateTime.getTextContent()).toLocalDate();
     }
 
     private String parseStringOrNull(Element element, String tagName) {

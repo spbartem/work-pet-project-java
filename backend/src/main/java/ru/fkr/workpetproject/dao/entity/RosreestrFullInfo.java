@@ -94,4 +94,10 @@ public class RosreestrFullInfo {
 
     @Column(name = "mailing_address")
     private String mailingAddress;
+
+    @Column(name = "cancel_date")
+    private LocalDate cancelDate;
+
+    @Column(name = "change_record_number")
+    private String changeRecordNumber;
 }
