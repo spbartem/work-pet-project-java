@@ -1,25 +1,29 @@
 package ru.fkr.workpetproject.controller.moneta;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.fkr.workpetproject.dao.dto.moneta.MonetaSessionDto;
+import ru.fkr.workpetproject.service.moneta.MonetaExportService;
 import ru.fkr.workpetproject.service.moneta.MonetaService;
 import ru.fkr.workpetproject.repository.moneta.VckpMonetaSessionRepository;
 
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/moneta/vckp-moneta-sessions")
+@RequestMapping("/api/moneta/moneta-sessions")
 @RequiredArgsConstructor
-public class VckpMonetaSessionController {
+public class MonetaController {
 
     private final VckpMonetaSessionRepository sessionRepository;
     private final MonetaService monetaService;
+    private final MonetaExportService exportService;
 
     // GET /api/sessions?page=...&size=...
     @GetMapping
@@ -28,7 +32,9 @@ public class VckpMonetaSessionController {
             @RequestParam(defaultValue = "10") int size
     ) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "vckpMonetaSessionId"));
-        return sessionRepository.findAll(pageable).map(MonetaSessionDto::fromEntity);
+        return sessionRepository
+                .findByVckpMonetaSessionIdGreaterThanOrderByVckpMonetaSessionIdDesc(200L, pageable)
+                .map(MonetaSessionDto::fromEntity);
     }
 
     // GET /api/sessions/{id}
@@ -50,6 +56,13 @@ public class VckpMonetaSessionController {
     public ResponseEntity<?> fillSum(@PathVariable Long sessionId) {
         monetaService.startFillingSum(sessionId);
         return ResponseEntity.ok(Map.of("message", "Заполнение сумм запущено"));
+    }
+
+    @GetMapping("/export/{sessionId}")
+    public void export(@PathVariable Long sessionId,
+                       HttpServletResponse response) throws Exception {
+
+        exportService.exportBySessionId(sessionId, response);
     }
 }
 
