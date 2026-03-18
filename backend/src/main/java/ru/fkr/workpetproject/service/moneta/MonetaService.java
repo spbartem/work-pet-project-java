@@ -42,7 +42,7 @@ public class MonetaService {
             );
 
             // Общее количество необработанных записей
-            Integer totalCountNotProcessed = jdbcTemplate.queryForObject(
+            int totalCountNotProcessed = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM vckp_moneta WHERE vckp_moneta_session_id = ? AND NOT processed",
                     Integer.class,
                     sessionId
@@ -124,7 +124,6 @@ public class MonetaService {
                     monetaImportService.resolveStatus(MonetaImportService.vckpMonetaSessionStatusEnum.FILE_PARSING)
             );
             sessionRepository.save(session);
-            return;
         }
     }
 

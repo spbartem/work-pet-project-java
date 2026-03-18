@@ -5,8 +5,10 @@ alter table vckp_moneta_session add column period date default null;
 grant all on vckp_moneta to report_user;
 grant select, insert on vckp_moneta_session to report_user;
 grant select on mst_flat to report_user;
+grant select, insert on oleg_action to report_user;
+grant select on bill to report_user;
+grant select on billing_session to report_user;
 grant all on sequence vckp_moneta_session_vckp_moneta_session_id_seq to report_user;
-grant select, insert on vckp_moneta to report_user;
 grant all on vckp_moneta_session to report_user;
 grant all on vckp_moneta_id_seq to report_user;
 
@@ -18,14 +20,389 @@ create table vckp_moneta_progress (
   total integer,
   updated_at timestamp default now()
 );
-
+create table if not exists vckp_moneta_tt_parse_address as select ''::text period, * from f_oleg_v_house_decision() where 1 <> 1;
+create index vckp_moneta_tt_parse_address_idx1 on vckp_moneta_tt_parse_address (mst_house_id, period);
 
 alter table vckp_moneta add column processed boolean default false;
 create index vckp_moneta_session_id_processed_idx on vckp_moneta(vckp_moneta_session_id, processed);
 
 создать 
 vckp_moneta_parse_address_limit
+CREATE OR REPLACE FUNCTION public.vckp_moneta_parse_address_limit(
+	vckp_moneta_session_id_in bigint,
+	notprocessed integer DEFAULT 1
+)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE SECURITY DEFINER PARALLEL UNSAFE
+AS 
+$BODY$
+
+DECLARE	
+	w_record record;
+	b_num_int text;
+	lit_int text;
+	constr_int varchar(8);
+	w_record2 record;
+	r_countall bigint;
+	r_count bigint;
+	ul_int text;
+	actionid bigint;
+	w_record3 record;
+	accountProcessed boolean;
+	house_id_int bigint;
+	check_house_143361_building_3 boolean;
+	check_house_143361_building_4 boolean;
+
+BEGIN
+	r_count := 0;
+	
+	for w_record in select * from vckp_moneta where vckp_moneta_session_id = vckp_moneta_session_id_in 
+				and (coalesce(notProcessed, 0) = 0 or coalesce(account_new, '') = '')
+				and processed is false
+				order by ul
+				limit 1000
+	loop
+		house_id_int:=null;
+		accountProcessed:=false;
+		r_count:=r_count + 1;
+		b_num_int:=null;
+		lit_int:=null;
+		constr_int:=null;
+		w_record.ul:=replace(w_record.ul,'ЮККОВС. ШОССЕ, П. ПАРГ., ОС.,Р','ЮККОВСКОЕ ШОССЕ, ОСИНОВАЯ РОЩА, П. ПАРГОЛОВО');
+		w_record.ul:=replace(w_record.ul,'РОСТОВСКАЯ УЛ., СЛАВЯНКА, ШУША','РОСТОВСКАЯ УЛ., СЛАВЯНКА, ШУШАРЫ');
+		w_record.ul:=replace(w_record.ul,'ПРИОЗ. ШОССЕ, П. ПАРГ., ОС.,РО','ПРИОЗЕРСКОЕ ШОССЕ, ОСИНОВАЯ РОЩА, П. ПАРГОЛОВО');
+		w_record.ul:=replace(w_record.ul,'КОЛПИНСКОЕ ШОССЕ, СЛАВЯНКА, ШУ','КОЛПИНСКОЕ ШОССЕ, СЛАВЯНКА, ШУШАРЫ');
+		w_record.ul:=replace(w_record.ul,'ВСЕВОЛОДА БОБРОВА УЛ., СЕСТРОР','ВСЕВОЛОДА БОБРОВА УЛ., СЕСТРОРЕЦК');
+		w_record.ul:=replace(w_record.ul,'Парголово п, Торфяное тер.','Торфяное');
+		w_record.ul:=replace(w_record.ul, 'Красное Село г, Рябчикова ул, д. 11 к. 2 литера А', 'Красное Село, улица Рябчикова, д. 11 корп. 2 литера Б'); 
+		w_record.ul:=(case when check_house_143361_building_3 = true then replace(w_record.ul, 'Дунайский пр-кт, д. 43 к. 3 стр. 1', 'Дунайский проспект, д. 43 корп. 1 литера А') else w_record.ul end);
+		w_record.ul:=(case when check_house_143361_building_4 = true then replace(w_record.ul, 'Дунайский пр-кт, д. 43 к. 4 стр. 1', 'Дунайский проспект, д. 43 корп. 1 литера А') else w_record.ul end);
+
+		w_record.ul:=regexp_replace(w_record.ul, '(, д\. ?\d+)( )(к\. ?\d+)', '\1, \3', 'g');
+		w_record.ul:=replace(w_record.ul, ' тер.,', ',');
+
+		if (select count(*) from mst_town where lower(w_record.ul) like '%'||lower(name_norm))=1 then
+			w_record.ul:=trim((select name_norm from mst_town where lower(w_record.ul) like '%'||lower(name_norm))||', '||substring(w_record.ul,1,length(w_record.ul)-(select length(name_norm) from mst_town where lower(w_record.ul) like '%'||lower(name_norm))));
+			if substring(w_record.ul,length(w_record.ul),1)=',' then
+				w_record.ul:=substring(w_record.ul,1,length(w_record.ul)-1);
+			end if;
+
+		end if;
+		if coalesce(w_record.korp,'')<>'' then
+			w_record.korp:=upper(w_record.korp);
+			if w_record.korp like 'ЛИТ.%' then 
+				lit_int:=trim(substring(w_record.korp,5,length(w_record.korp))); 
+			elsif lower(w_record.korp) like lower('СТР.%') then 
+				constr_int:=trim(substring(w_record.korp,5,length(w_record.korp))); 
+			elsif w_record.korp ~ '\dЛИТ' then
+				b_num_int := trim(substring(w_record.korp,1,position('ЛИТ' in w_record.korp)-1));
+				lit_int := trim(substring(w_record.korp,position('ЛИТ' in w_record.korp)+3,length(w_record.korp)));
+			elsif w_record.korp ~ '\dСТР' then
+				b_num_int := trim(substring(w_record.korp,1,position('СТР' in w_record.korp)-1));
+				constr_int := trim(substring(w_record.korp,position('СТР' in w_record.korp)+3,length(w_record.korp)));
+			elsif w_record.korp ~ '\dС' then
+				b_num_int := trim(substring(w_record.korp,1,position('С' in w_record.korp)-1));
+				constr_int := trim(substring(w_record.korp,position('С' in w_record.korp)+1,length(w_record.korp)));
+			elsif w_record.korp ~ '\d\D' then
+				b_num_int:='';
+				while w_record.korp ~ '\d' loop
+					b_num_int:=b_num_int||substring(w_record.korp,1,1);
+					w_record.korp:=substring(w_record.korp,2,length(w_record.korp));
+				end loop;
+				lit_int:=w_record.korp;
+			else	
+				b_num_int:=w_record.korp;
+			end if;
+		end if;
+		for w_record3 in select w_record.ul
+				 union all 
+				 select replace(w_record.ul,'ПОС.ШУШАРЫ, КОЛПИНСКОЕ ШОССЕ','ПОС.ШУШАРЫ, СЛАВЯНКА, КОЛПИНСКОЕ ШОССЕ') where w_record.ul<>replace(w_record.ul,'ПОС.ШУШАРЫ, КОЛПИНСКОЕ ШОССЕ','ПОС.ШУШАРЫ, СЛАВЯНКА, КОЛПИНСКОЕ ШОССЕ')
+			loop
+			select * from f_oleg_parseaddress(w_record3.ul::text,w_record.dom::text,b_num_int,lit_int,w_record.nkv::text,null::bigint,null::date,0,1,0,w_record.sq_pay,w_record.rn_name::text,true,constr_int,null,coalesce(w_record.sq_pay,0)/10,w_record.kod_fias,null,null,1) into w_record2;
+			if house_id_int is null and w_record2.house_id_int is not null then
+				house_id_int:=w_record2.house_id_int;
+			end if;
+			if w_record2.res<0 then
+				select * from f_oleg_parseaddress(w_record3.ul::text,w_record.dom::text,b_num_int,lit_int,w_record.nkv::text,null::bigint,null::date,0,1,0,null,w_record.rn_name::text,true,constr_int,null,1,w_record.kod_fias,w_record.rep_acc,null,1 ) into w_record2;
+				if w_record2.res<0 then
+					update vckp_moneta
+						set note = w_record2.err_mess||' ('||w_record2.res||')'
+						where	id=w_record.id;
+				else
+					update vckp_moneta
+						set note = case when w_record2.res<>0 then coalesce(w_record2.err_mess,'') else '' end||' Несоотв. площадей',
+						    account_new=w_record2.account_num_int
+						where	id=w_record.id;
+						accountProcessed:=true;
+				end if;
+			else
+				update vckp_moneta
+					set note = case when w_record2.res<>0 then w_record2.err_mess else '' end,
+					    account_new=w_record2.account_num_int
+					where	id=w_record.id;
+					accountProcessed:=true;
+			end if;
+			if w_record2.res>=0 then 
+				exit;
+			end if;
+		end loop;
+		if house_id_int is not null then
+			update vckp_moneta
+				set	house_id=house_id_int
+				where id=w_record.id;
+		end if;
+		if not accountProcessed then
+			if (select count(*) from mst_flat mf
+						inner join mst_house mh
+							inner join mst_district d
+								on mh.district_id=d.district_id
+							inner join mst_street ms
+								on ms.street_id=mh.street_id
+							on mf.house_id=mh.house_id
+					where	mf.account=w_record.rep_acc and
+						mf.flat_num=w_record.nkv and
+						((
+							lower(d.name) like lower(w_record.rn_name)||'%' and
+							lower(w_record.ul) like '%'||lower(ms.name_norm)||'%' and
+							lower(w_record.dom) like lower(mh.house_num)||'%' 
+						 ) or
+						 mf.house_id=house_id_int
+						)) =1 
+						then
+				update vckp_moneta
+					set note = coalesce(note,'')||' Найдено по лс Фонда',
+					    account_new=w_record.rep_acc
+					where	id=w_record.id;
+				accountProcessed:=true;						
+			end if;
+		end if;
+		if not accountProcessed then
+			if (select count(distinct mf.account) 
+					from mst_flat mf
+						inner join oleg_pes_exchange pe
+							inner join oleg_pes_exchange_header peh
+								on pe.oleg_pes_exchange_header_id=peh.id and
+								   peh.useinlink
+							on pe.account=mf.account and
+							   pe.els=w_record.rep_acc
+						inner join mst_house mh
+							inner join mst_district d
+								on mh.district_id=d.district_id
+							inner join mst_street ms
+								on ms.street_id=mh.street_id
+							on mf.house_id=mh.house_id
+					where	mf.flat_num=w_record.nkv and
+						((
+							lower(d.name) like lower(w_record.rn_name)||'%' and
+							lower(w_record.ul) like '%'||lower(ms.name_norm)||'%' and
+							lower(w_record.dom) like lower(mh.house_num)||'%'
+						 ) or
+						 mf.house_id=house_id_int
+						)) =1 
+
+						then
+				update vckp_moneta
+					set note = coalesce(note,'')||' Найдено по лс ЕЛС',
+					    account_new=((select distinct mf.account 
+					from mst_flat mf
+						inner join oleg_pes_exchange pe
+							inner join oleg_pes_exchange_header peh
+								on pe.oleg_pes_exchange_header_id=peh.id and
+								   peh.useinlink
+							on pe.account=mf.account and
+							   pe.els=w_record.rep_acc
+						inner join mst_house mh
+							inner join mst_district d
+								on mh.district_id=d.district_id
+							inner join mst_street ms
+								on ms.street_id=mh.street_id
+							on mf.house_id=mh.house_id
+					where	mf.flat_num=w_record.nkv and
+						((
+							lower(d.name) like lower(w_record.rn_name)||'%' and
+							lower(w_record.ul) like '%'||lower(ms.name_norm)||'%' and
+							lower(w_record.dom) like lower(mh.house_num)||'%'))
+						  ) or
+						 mf.house_id=house_id_int
+						)
+
+					where id=w_record.id;
+				accountProcessed:=true;						
+			end if;
+		end if;
+		
+		update vckp_moneta set processed = true where id = w_record.id;
+		
+	end loop;
+
+	update vckp_moneta_progress
+	set processed = processed + r_count, updated_at = clock_timestamp()
+	where session_id = vckp_moneta_session_id_in;	
+END;
+$BODY$
+
 vckp_moneta_parse_address_start
+CREATE OR REPLACE FUNCTION public.vckp_moneta_parse_address_start(
+	vckp_moneta_session_id_in bigint,
+	notprocessed integer DEFAULT 1,
+	OUT res integer,
+	OUT err_mess text,
+	OUT action_id_out bigint
+)
+    RETURNS record
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE SECURITY DEFINER PARALLEL UNSAFE
+AS 
+$BODY$
+
+DECLARE	
+	w_record record;
+	actionid bigint;
+	r_countall bigint;
+
+BEGIN
+	res := 0;
+	err_mess:='';
+	
+	SELECT * FROM f_oleg_getnextactionid (21, vckp_moneta_session_id_in, NULL, 'Обработка') INTO w_record;
+	IF w_record.res < 0 THEN
+		res := -1;
+		err_mess := w_record.err_mess||' ('||w_record.res::text||')';
+		RETURN;
+	END IF;
+	actionid := w_record.action_id;
+	action_id_out:=actionid;
+	
+	SELECT * FROM f_OLEG_listMessagesInsert (actionid, 1, NULL, clock_timestamp()||' - Запуск обработки адресов') INTO w_record;
+	SELECT	COUNT(*) INTO r_countall FROM vckp_moneta WHERE vckp_moneta_session_id = vckp_moneta_session_id_in AND (COALESCE(notProcessed, 0) = 0 OR COALESCE(account_new, '') = '');
+	SELECT * FROM f_OLEG_listMessagesInsert (actionid, 1, NULL, clock_timestamp()||' - '||r_countall||' записей к обработке') INTO w_record;
+
+	IF COALESCE(notProcessed, 0) = 0 THEN
+		UPDATE vckp_moneta
+			SET flat_id = NULL,
+			    account_new = '',
+			    rep_acc = COALESCE(old_rep_acc, rep_acc),
+			    house_id = NULL
+			WHERE vckp_moneta_session_id = vckp_moneta_session_id_in;
+	END IF;
+
+	UPDATE vckp_moneta
+		SET res_code = NULL
+		WHERE vckp_moneta_session_id = vckp_moneta_session_id_in;
+
+	INSERT INTO vckp_moneta_progress (session_id, total) VALUES (vckp_moneta_session_id_in, r_countall);
+
+	UPDATE vckp_moneta SET period_day=last_day(make_date(SUBSTRING(PERIOD, 1, 4)::int, SUBSTRING(PERIOD, 6, 2)::int,1)) WHERE vckp_moneta_session_id=vckp_moneta_session_id_in;
+
+	TRUNCATE vckp_moneta_tt_parse_address;
+	FOR w_record IN SELECT DISTINCT period_day, PERIOD FROM vckp_moneta WHERE vckp_moneta_session_id=vckp_moneta_session_id_in LOOP
+		INSERT INTO vckp_moneta_tt_parse_address SELECT w_record.period, * FROM f_oleg_v_house_decision(w_record.period_day) hd WHERE COALESCE(hd.decision_type_id, 0) IN (1, 2, 5);
+	END LOOP;
+
+	RETURN;
+END;
+$BODY$
+
 vckp_moneta_parse_address_final
+CREATE OR REPLACE FUNCTION public.vckp_moneta_parse_address_final(
+	vckp_moneta_session_id_in bigint,
+	action_id_in bigint
+)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE SECURITY DEFINER PARALLEL UNSAFE
+AS 
+$BODY$
+
+DECLARE	
+	w_record record;
+	actionid bigint;
+
+BEGIN
+	actionid:=action_id_in;
+	
+	UPDATE vckp_moneta vm
+		SET	house_id = mf.house_id
+		FROM mst_flat mf
+		WHERE vm.house_id IS NULL AND
+			mf.account = COALESCE(vm.account_new, '') AND
+			vm.vckp_moneta_session_id = vckp_moneta_session_id_in;
+	
+	SELECT * FROM f_OLEG_listMessagesInsert (actionid, 1, NULL, clock_timestamp()||' - разборка адресов завершена') INTO w_record;
+	UPDATE vckp_moneta vm
+		SET	old_rep_acc = vm.rep_acc,
+			rep_acc = vm.account_new,
+			flat_id = mf.flat_id,
+			sq_pay = round(mf.sqr_base,2),
+			els = CASE WHEN COALESCE(els, '') <> '' THEN els ELSE sub.els_id END
+		FROM mst_flat mf
+			LEFT OUTER JOIN (SELECT flat_id, els_id FROM gis_gkh_ls_now WHERE NOT closed) sub
+				ON mf.flat_id = sub.flat_id
+		WHERE vckp_moneta_session_id = vckp_moneta_session_id_in AND
+			mf.account = COALESCE(vm.account_new,'') AND
+			vm.flat_id IS NULL;
+			
+	UPDATE vckp_moneta vm
+		SET res_code = 4
+		WHERE vckp_moneta_session_id = vckp_moneta_session_id_in AND
+			(
+				COALESCE(account_new, '') = '' AND
+				COALESCE(house_id, 0) = 0
+			);
+
+	UPDATE vckp_moneta vm
+		SET res_code = 1
+		WHERE vckp_moneta_session_id = vckp_moneta_session_id_in AND
+			(
+				EXISTS (SELECT 1 FROM mst_flat mf 
+							INNER JOIN mst_house mh 
+								ON mf.house_id = mh.house_id 
+						WHERE mf.account = vm.account_new AND 
+							(mf.property_type_id NOT IN (0, 15, 4478535)
+							OR 
+							mf.flat_owner_id IS NOT NULL 
+							OR
+							mf.account_closed
+							OR
+							mh.unfit 
+							OR
+							mh.billing_locked
+							OR 
+							NOT EXISTS (SELECT 1 FROM vckp_moneta_tt_parse_address hd WHERE mf.house_id = hd.mst_house_id AND hd.period = vm.period)
+							)
+					)
+			);
+
+	UPDATE vckp_moneta vm
+		SET	res_code = 4
+		WHERE vckp_moneta_session_id = vckp_moneta_session_id_in AND
+			EXISTS (SELECT 1 FROM mst_flat mf
+						INNER JOIN mst_house mh
+							ON mf.house_id = mh.house_id AND
+							   mh.service_system_id = 1
+					WHERE mf.account = vm.account_new AND 
+						mf.property_type_id = 0);
+						
+	UPDATE vckp_moneta vm
+		SET	res_code = 4
+		WHERE vckp_moneta_session_id = vckp_moneta_session_id_in AND
+			NOT EXISTS (SELECT 1 FROM vckp_moneta_tt_parse_address hd WHERE COALESCE(vm.house_id, 0) = hd.mst_house_id AND hd.period = vm.period);
+						
+	UPDATE vckp_moneta vm
+		SET res_code = 4
+		WHERE vckp_moneta_session_id = vckp_moneta_session_id_in AND
+			COALESCE(house_id, 0) > 0 AND
+			COALESCE(account_new, '') = '' AND
+			res_code IS NULL;
+	
+							
+	SELECT * FROM f_OLEG_listMessagesInsert (actionid, 1, NULL, clock_timestamp()||' - обработка адресов завершена') INTO w_record;	
+	TRUNCATE vckp_moneta_progress;
+END;
+$BODY$
 
 добавить security definer для vckp_moneta_calc

@@ -26,11 +26,12 @@ export default function MonetaUploadPage() {
   const [errorMessage, setErrorMessage] = useState(null);
   const [fillSum, setFillSum] = useState(false);
 
+  const addressSessionKey = 'activeAddressSessionId';
   const pageSize = 10;
 
   const fetchSessions = async (pageIndex = 0) => {
     try {
-      const response = await axios.get(`${backendUrl}/api/moneta/vckp-moneta-sessions?page=${pageIndex}&size=${pageSize}`);
+      const response = await axios.get(`${backendUrl}/api/moneta/moneta-sessions?page=${pageIndex}&size=${pageSize}`);
       setSessions(response.data.content);
       setTotalPages(response.data.totalPages);
     } catch (e) {
@@ -40,7 +41,7 @@ export default function MonetaUploadPage() {
   
   const pollSavedSession = async (sessionId) => {
     try {
-      const res = await axios.get(`${backendUrl}/api/moneta/vckp-moneta-sessions/${sessionId}`);
+      const res = await axios.get(`${backendUrl}/api/moneta/moneta-sessions/${sessionId}`);
       const session = res.data;
       setServerProgress(Math.round((session.progress || 0) * 100));
       setServerText(session.fileLoaded ? '✅ Завершено' : 'Обработка...');
@@ -131,6 +132,7 @@ export default function MonetaUploadPage() {
           setFillAddress(false);
           setUploadingPhase(null);
           fetchSessions();
+          localStorage.removeItem(addressSessionKey);
         }
       });
 
@@ -213,6 +215,7 @@ export default function MonetaUploadPage() {
     }
   };
 
+  //блок заполнения адресов
   const handleFillAddresses = async (sessionId) => {
     try {
       setErrorMessage(null);
@@ -221,13 +224,51 @@ export default function MonetaUploadPage() {
       setServerProgress(0);
       setServerText('Запущена обработка адресов...');
 
-      await axios.post(`${backendUrl}/api/moneta/vckp-moneta-sessions/${sessionId}/fill-addresses`);
+      localStorage.setItem(addressSessionKey, sessionId);
+
+      await axios.post(
+        `${backendUrl}/api/moneta/moneta-sessions/${sessionId}/fill-addresses`
+      );
 
     } catch (e) {
       console.error('Ошибка при заполнении адресов:', e);
       setFillAddress(false);
       setUploadingPhase(null);
       fetchSessions();
+    }
+  };
+
+  useEffect(() => {
+  const savedAddressSessionId = localStorage.getItem(addressSessionKey);
+
+  if (savedAddressSessionId) {
+      setFillAddress(true);
+      setUploadingPhase('addressParsing');
+      pollAddressSession(savedAddressSessionId);
+    }
+  }, []);
+
+  const pollAddressSession = async (sessionId) => {
+    try {
+      const res = await axios.get(
+        `${backendUrl}/api/moneta/moneta-sessions/${sessionId}`
+      );
+
+      const session = res.data;
+
+      if (session.statusCode === 'ADDRESS_PARSING') {
+        setServerProgress((session.addressProgress || 0) * 100);
+        setServerText(session.addressMessage || 'Парсинг адресов...');
+
+        setTimeout(() => pollAddressSession(sessionId), 2000);
+      } else {
+        setFillAddress(false);
+        setUploadingPhase(null);
+        localStorage.removeItem(addressSessionKey);
+        fetchSessions();
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -238,7 +279,7 @@ export default function MonetaUploadPage() {
       setUploadingPhase('sumFilling');
       setServerText('Запущено заполнение сумм...')
 
-      await axios.post(`${backendUrl}/api/moneta/vckp-moneta-sessions/${sessionId}/fill-sum`)
+      await axios.post(`${backendUrl}/api/moneta/moneta-sessions/${sessionId}/fill-sum`)
 
     } catch (e) {
       console.error('Ошибка при заполнении сумм:', e);
@@ -247,6 +288,27 @@ export default function MonetaUploadPage() {
       fetchSessions();
     }
   };
+
+  const handleDownloadXml = async (sessionId) => {
+  try {
+    const response = await axios.get(
+      `${backendUrl}/api/moneta/moneta-sessions/export/${sessionId}`,
+      { responseType: 'blob' }
+    );
+
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `QR_140440_${sessionId}.xml`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+  } catch (e) {
+    console.error('Ошибка при скачивании XML:', e);
+    showError('Ошибка при скачивании файла');
+  }
+};
 
   return (
     <div className="p-4 space-y-4">
@@ -357,7 +419,7 @@ export default function MonetaUploadPage() {
                 {s.statusCode === 'SUM_ENTERED' && (
                   <Button
                     size="sm" 
-                    onClick={() => handleFillSum(s.id)}
+                    onClick={() => handleDownloadXml(s.id)}
                     disabled={fillSum}
                   >
                     {fillSum  ? 'Заполнение...'  : 'Скачать файл'} 
