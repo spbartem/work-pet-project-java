@@ -33,7 +33,7 @@ public class MonetaController {
     ) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "vckpMonetaSessionId"));
         return sessionRepository
-                .findByVckpMonetaSessionIdGreaterThanOrderByVckpMonetaSessionIdDesc(200L, pageable)
+                .findByVckpMonetaSessionIdGreaterThanOrderByVckpMonetaSessionIdDesc(166L, pageable)
                 .map(MonetaSessionDto::fromEntity);
     }
 
