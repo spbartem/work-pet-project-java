@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.fkr.workpetproject.dao.entity.VckpMonetaSession;
 import ru.fkr.workpetproject.repository.moneta.VckpMonetaSessionRepository;
 import ru.fkr.workpetproject.service.moneta.MonetaImportService;
+import ru.fkr.workpetproject.utils.MonetaResolvePeriod;
 
 import java.io.File;
 import java.io.FileOutputStream;

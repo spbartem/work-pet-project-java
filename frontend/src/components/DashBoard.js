@@ -341,7 +341,7 @@ return (
                   <b>(+{Number(debt_diff_sum).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽)</b>
                 )}
                 {isNegativeDebt && (
-                  <b>(+{Number(debt_diff_sum).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽)</b>
+                  <b>({Number(debt_diff_sum).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽)</b>
                 )}
               </div>     
             </div>

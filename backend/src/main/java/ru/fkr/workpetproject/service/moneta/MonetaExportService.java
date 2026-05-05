@@ -113,22 +113,24 @@ public class MonetaExportService {
                         indent(xml);
                         xml.writeEmptyElement("REP");
 
-                        attr(xml, "PERIOD_ACC", rs.getString("period"));
-                        attr(xml, "REP_ACC", rs.getString("rep_acc"));
-                        attr(xml, "LS_ID", rs.getObject("ls_id"));
-                        attr(xml, "SQ_PAY", rs.getObject("sq_pay"));
-                        attr(xml, "ELS", rs.getString("els"));
-                        attr(xml, "LS_TYPE", rs.getObject("ls_type"));
-                        attr(xml, "OBJECT_GUID", rs.getString("kod_fias"));
-                        attr(xml, "OBJECT_ADDRESS", rs.getString("ul"));
-                        attr(xml, "FLAT", rs.getString("nkv"));
-                        attr(xml, "PREMISE_GUID", rs.getString("premise_guid"));
-                        attr(xml, "KR_SUM", rs.getObject("kr_sum"));
-                        attr(xml, "REP_TRF", rs.getObject("rep_trf"));
-                        attr(xml, "REGN", rs.getString("regn"));
-                        attr(xml, "SUM_T", rs.getObject("kr_st"));
-                        attr(xml, "SUM_LGT", rs.getObject("lgt_kr"));
-                        attr(xml, "RES_CODE", rs.getObject("res_code"));
+                        attrString(xml, "PERIOD_ACC", rs.getString("period"));
+                        attrInteger(xml, "REP_ACC", rs.getString("rep_acc"));
+                        if (rs.getString("els") != null) attrString(xml, "ELS", rs.getString("els"));
+                        attrNumeric(xml, "SQ_PAY", rs.getObject("sq_pay"));
+                        attrString(xml, "PREMISE_GUID", rs.getString("premise_guid"));
+                        attrString(xml, "FLAT", rs.getString("nkv"));
+                        if (rs.getString("room_guid") != null) attrString(xml, "ROOM_GUID", rs.getString("room_guid"));
+                        if (rs.getString("room") != null) attrString(xml, "ROOM", rs.getString("room"));
+                        attrString(xml, "OBJECT_ADDRESS", rs.getString("ul"));
+                        attrString(xml, "OBJECT_GUID", rs.getString("kod_fias"));
+                        attrInteger(xml, "LS_TYPE", rs.getObject("ls_type"));
+                        attrInteger(xml, "LS_ID", rs.getObject("ls_id"));
+                        attrNumeric(xml, "KR_SUM", rs.getObject("kr_sum"));
+                        attrNumeric(xml, "REP_TRF", rs.getObject("rep_trf"));
+                        if (rs.getString("regn") != null) attrString(xml, "REGN", rs.getString("regn"));
+                        if (rs.getObject("kr_st") != null) attrNumeric(xml, "SUM_T", rs.getObject("kr_st"));
+                        if (rs.getObject("lgt_kr") != null) attrNumeric(xml, "SUM_LGT", rs.getObject("lgt_kr"));
+                        attrString(xml, "RES_CODE", rs.getObject("res_code"));
 
                         newline(xml);
                     } catch (XMLStreamException e) {
@@ -142,7 +144,7 @@ public class MonetaExportService {
     // =====================================================
     // ATTRIBUTE WRITER (NULL -> "")
     // =====================================================
-    private void attr(XMLStreamWriter xml,
+    private void attrString(XMLStreamWriter xml,
                       String name,
                       Object value) {
 
@@ -150,6 +152,34 @@ public class MonetaExportService {
             xml.writeAttribute(
                     name,
                     value == null ? "" : String.valueOf(value)
+            );
+        } catch (XMLStreamException e) {
+            throw new RuntimeException("XML write error", e);
+        }
+    }
+
+    private void attrInteger(XMLStreamWriter xml,
+                      String name,
+                      Object value) {
+
+        try {
+            xml.writeAttribute(
+                    name,
+                    value == null ? "0" : String.valueOf(value)
+            );
+        } catch (XMLStreamException e) {
+            throw new RuntimeException("XML write error", e);
+        }
+    }
+
+    private void attrNumeric(XMLStreamWriter xml,
+                             String name,
+                             Object value) {
+
+        try {
+            xml.writeAttribute(
+                    name,
+                    formatValue(value)
             );
         } catch (XMLStreamException e) {
             throw new RuntimeException("XML write error", e);
@@ -170,5 +200,11 @@ public class MonetaExportService {
         } catch (XMLStreamException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static String formatValue(Object value) {
+        if (value == null) return "0.0";
+        String strValue = value.toString();
+        return strValue.isBlank() ? "0.0" : strValue;
     }
 }
