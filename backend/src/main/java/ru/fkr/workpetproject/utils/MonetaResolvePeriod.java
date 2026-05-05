@@ -1,10 +1,16 @@
 package ru.fkr.workpetproject.utils;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 import ru.fkr.workpetproject.repository.moneta.VckpMonetaSessionRepository;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@Service
+@RequiredArgsConstructor
+@Slf4j
 public class MonetaResolvePeriod {
 
     private static VckpMonetaSessionRepository sessionRepository = null;
@@ -35,6 +41,6 @@ public class MonetaResolvePeriod {
         String year = raw.substring(0, 4);
         String month = raw.substring(4, 6);
 
-        return year + "-" + month;
+        return year + month;
     }
 }

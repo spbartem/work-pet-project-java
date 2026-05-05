@@ -30,6 +30,10 @@ spring:
   servlet:
     multipart:
       enabled: true
+      max-file-size: 2GB
+      max-request-size: 2GB
+      file-size-threshold: 2MB
+
 jwt:
   secret: ThisIsASecretKeyThatIsLongEnoughToBeSecureAndProperForHS512ThisIsASecretKeyThatIsLongEnoughToBeSecureAndProperForHS512
 
