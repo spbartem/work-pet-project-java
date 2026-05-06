@@ -99,6 +99,26 @@ public class XmlValidatorService {
         }
     }
 
+    public ValidationResult validateXmlAgainstXsd(InputStream xmlInputStream, InputStream xsdInputStream) {
+        List<ValidationResult.ValidationError> errors = new ArrayList<>();
+
+        try {
+            SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+            Schema schema = factory.newSchema(new StreamSource(xsdInputStream));
+            Validator validator = schema.newValidator();
+
+            setupErrorHandler(validator, errors);
+            validator.validate(new StreamSource(xmlInputStream));
+
+            return buildResult(errors);
+
+        } catch (Exception e) {
+            log.error("Exception during validation", e);
+            errors.add(createError("ERROR", 0, 0, e.getMessage()));
+            return ValidationResult.failure("Ошибка при валидации: " + e.getMessage(), errors);
+        }
+    }
+
     private void setupErrorHandler(Validator validator, List<ValidationResult.ValidationError> errors) {
         validator.setErrorHandler(new DefaultHandler() {
             @Override

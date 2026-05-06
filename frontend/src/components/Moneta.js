@@ -70,18 +70,39 @@ export default function MonetaUploadPage() {
       return;
     }
 
+    /*
+    // Проверка размера файла
+    const fileSizeMB = file.size / (1024 * 1024);
+    console.log(`Файл: ${file.name}, размер: ${fileSizeMB.toFixed(2)} MB`);
+    
+    if (fileSizeMB > 500) {
+      setErrorMessage('Файл слишком большой. Максимальный размер 500 MB');
+      setTimeout(() => setErrorMessage(null), 5000);
+      return;
+    }
+    */
+
     setIsValidating(true);
     setErrorMessage(null);
     
-    const formData = new FormData();
-    formData.append('xmlFile', file);
-    
     try {
+      // Отправляем файл напрямую, без FormData
       const response = await axios.post(
         `${backendUrl}/api/moneta/moneta-sessions/validate-xml?xsdType=${selectedXsdType}`,
-        formData,
+        file,  // Прямо файл, а не FormData
         {
-          headers: { 'Content-Type': 'multipart/form-data' }
+          headers: { 
+            'Content-Type': 'application/octet-stream'  // Важно!
+          },
+          maxContentLength: Infinity,     // Без ограничений на размер
+          maxBodyLength: Infinity,        // Без ограничений на тело запроса
+          timeout: 120000,                // Таймаут 2 минуты для больших файлов
+          onUploadProgress: (progressEvent) => {
+            // Отслеживаем прогресс загрузки (опционально)
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            console.log(`Загрузка: ${percentCompleted}%`);
+            // Можно добавить индикатор прогресса в UI
+          }
         }
       );
       
@@ -90,7 +111,7 @@ export default function MonetaUploadPage() {
         // Показываем успешное сообщение
         const successMsg = document.createElement('div');
         successMsg.className = 'bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded mb-2';
-        successMsg.innerHTML = `✅ ${response.data.message}`;
+        successMsg.innerHTML = `✅ ${response.data.message || 'XML валиден'}`;
         const container = document.querySelector('.flex.flex-col.gap-4.border.rounded.p-4');
         if (container) {
           const existing = container.querySelector('.validation-message');
@@ -100,18 +121,36 @@ export default function MonetaUploadPage() {
           setTimeout(() => successMsg.remove(), 5000);
         }
       } else {
-        setErrorMessage(`❌ ${response.data.message}`);
+        setErrorMessage(`❌ ${response.data.message || 'Ошибка валидации'}`);
         if (response.data.errors && response.data.errors.length > 0) {
           console.error('Детали ошибок:', response.data.errors);
+          // Можно показать детали ошибок
+          const errorDetails = response.data.errors.map(e => 
+            `${e.type} на строке ${e.line}: ${e.message}`
+          ).join('\n');
+          console.error('Детали:\n', errorDetails);
         }
       }
     } catch (error) {
       console.error('Ошибка валидации:', error);
-      const errorData = error.response?.data;
-      if (errorData) {
-        setErrorMessage(`❌ ${errorData.message}`);
+      
+      // Обработка разных типов ошибок
+      if (error.code === 'ECONNABORTED') {
+        setErrorMessage('❌ Превышен таймаут. Файл слишком большой или сервер долго отвечает.');
+      } else if (error.response?.data?.message) {
+        setErrorMessage(`❌ ${error.response.data.message}`);
+      } else if (error.response?.status === 413) {
+        setErrorMessage('❌ Файл слишком большой. Превышен лимит размера на сервере.');
+      } else if (error.message === 'Network Error') {
+        setErrorMessage('❌ Ошибка сети. Проверьте соединение с сервером.');
       } else {
         setErrorMessage('❌ Ошибка при выполнении валидации');
+      }
+      
+      // Дополнительная диагностика
+      if (error.response) {
+        console.error('Статус:', error.response.status);
+        console.error('Данные:', error.response.data);
       }
     } finally {
       setIsValidating(false);

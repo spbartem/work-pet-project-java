@@ -1,5 +1,6 @@
 package ru.fkr.workpetproject.controller.moneta;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,6 +10,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -78,29 +80,28 @@ public class MonetaController {
      * Валидация XML файла перед загрузкой
      * XSD файл берется статически из resources
      */
-    @PostMapping("/validate-xml")
+    @PostMapping(value = "/validate-xml", consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public ResponseEntity<ValidationResult> validateXmlBeforeUpload(
-            @RequestParam("xmlFile") MultipartFile xmlFile,
-            @RequestParam(value = "xsdType", defaultValue = "request") String xsdType) {
+            @RequestParam(value = "xsdType", defaultValue = "request") String xsdType,
+            HttpServletRequest request) {
 
-        log.info("Валидация XML файла: {}, тип XSD: {}", xmlFile.getOriginalFilename(), xsdType);
+        log.info("Валидация XML, тип XSD: {}", xsdType);
 
-        try {
-            // Загружаем XSD файл из resources в зависимости от типа
+        try (InputStream xmlInputStream = request.getInputStream()) {
             String xsdPath = getXsdPathByType(xsdType);
             InputStream xsdInputStream = new ClassPathResource(xsdPath).getInputStream();
 
-            ValidationResult result = xmlValidatorService.validateXmlAgainstXsd(xmlFile, xsdInputStream);
+            ValidationResult result = xmlValidatorService.validateXmlAgainstXsd(xmlInputStream, xsdInputStream);
 
             if (result.isValid()) {
                 return ResponseEntity.ok(result);
             } else {
                 return ResponseEntity.badRequest().body(result);
             }
-        } catch (IOException e) {
-            log.error("Ошибка при загрузке XSD файла", e);
+        } catch (Exception e) {
+            log.error("Ошибка при валидации XML", e);
             return ResponseEntity.internalServerError()
-                    .body(ValidationResult.failure("Ошибка сервера: XSD файл не найден", new java.util.ArrayList<>()));
+                    .body(ValidationResult.failure("Ошибка сервера: " + e.getMessage(), new java.util.ArrayList<>()));
         }
     }
 
