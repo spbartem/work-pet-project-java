@@ -1,6 +1,7 @@
 package ru.fkr.workpetproject.service.moneta;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.xml.sax.SAXException;
@@ -24,8 +25,9 @@ import java.util.UUID;
 @Slf4j
 public class XmlValidatorService {
 
-    private static final String TEMP_DIR = System.getProperty("java.io.tmpdir") + "/xml-validation/";
-
+//    private static final String TEMP_DIR = System.getProperty("java.io.tmpdir") + "/xml-validation/";
+    @Value("${moneta.upload-dir}")
+    private String TEMP_DIR;
     /**
      * Валидация XML файла (MultipartFile) против XSD (InputStream)
      */
