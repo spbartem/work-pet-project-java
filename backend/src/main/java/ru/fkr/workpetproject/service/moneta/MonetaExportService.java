@@ -115,16 +115,16 @@ public class MonetaExportService {
 
                         attrString(xml, "PERIOD_ACC", rs.getString("period"));
                         attrInteger(xml, "REP_ACC", rs.getString("rep_acc"));
-                        if (rs.getString("els") != null) attrString(xml, "ELS", rs.getString("els"));
+                        attrInteger(xml, "LS_ID", rs.getObject("ls_id"));
                         attrNumeric(xml, "SQ_PAY", rs.getObject("sq_pay"));
-                        attrString(xml, "PREMISE_GUID", rs.getString("premise_guid"));
+                        if (rs.getString("els") != null) attrString(xml, "ELS", rs.getString("els"));
+                        attrInteger(xml, "LS_TYPE", rs.getObject("ls_type"));
+                        attrString(xml, "OBJECT_GUID", rs.getString("kod_fias"));
+                        attrString(xml, "OBJECT_ADDRESS", rs.getString("ul"));
                         attrString(xml, "FLAT", rs.getString("nkv"));
+                        attrString(xml, "PREMISE_GUID", rs.getString("premise_guid"));
                         if (rs.getString("room_guid") != null) attrString(xml, "ROOM_GUID", rs.getString("room_guid"));
                         if (rs.getString("room") != null) attrString(xml, "ROOM", rs.getString("room"));
-                        attrString(xml, "OBJECT_ADDRESS", rs.getString("ul"));
-                        attrString(xml, "OBJECT_GUID", rs.getString("kod_fias"));
-                        attrInteger(xml, "LS_TYPE", rs.getObject("ls_type"));
-                        attrInteger(xml, "LS_ID", rs.getObject("ls_id"));
                         attrNumeric(xml, "KR_SUM", rs.getObject("kr_sum"));
                         attrNumeric(xml, "REP_TRF", rs.getObject("rep_trf"));
                         if (rs.getString("regn") != null) attrString(xml, "REGN", rs.getString("regn"));
