@@ -116,7 +116,7 @@ function App() {
                         path="/vckp_moneta"
                         element={
                         isAuthenticated
-                            ?   <ProtectedRoute allowedRoles={['ADMIN']}>
+                            ?   <ProtectedRoute allowedRoles={['ADMIN', 'PAYMENT_CENTER']}>
                                     <VckpMoneta />
                                 </ProtectedRoute>
                             :   <LoginPage onLogin={handleLogin} />
